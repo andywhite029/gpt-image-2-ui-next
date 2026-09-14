@@ -1,0 +1,271 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f5f6f7;
+  --panel: #ffffff;
+  --panel2: #f7f8fa;
+  --panel3: #eef0f3;
+  --border: #e5e6eb;
+  --border2: #c9cdd4;
+  --text: #1d2129;
+  --muted: #6b7280;
+  --faint: #9aa0a6;
+  --accent: #009efa;
+  --accent2: #00cae0;
+  --ok: #00be93;
+  --warn: #ff922e;
+  --err: #f53f3f;
+  --unknown: #8a5cff;
+}
+
+html[data-theme="dark"] {
+  --bg: #121217;
+  --panel: #1c1c21;
+  --panel2: #232329;
+  --panel3: #28282e;
+  --border: #303036;
+  --border2: #43434c;
+  --text: #e6e6e6;
+  --muted: #afafb6;
+  --faint: #7a7a85;
+  --ok: #2dd196;
+  --warn: #ff9230;
+  --unknown: #b07cff;
+}
+
+/* Tailwind 4 主题映射：--color-xxx → bg-xxx / text-xxx / border-xxx 等工具类 */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel2: var(--panel2);
+  --color-panel3: var(--panel3);
+  --color-border: var(--border);
+  --color-border2: var(--border2);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent2: var(--accent2);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-err: var(--err);
+  --color-unknown: var(--unknown);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border2);
+  border-radius: 5px;
+  border: 2px solid var(--bg);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---------- 通用基础类（与旧版视觉一致的原子组合） ---------- */
+
+/* 图标按钮 */
+.btn-icon {
+  @apply inline-flex h-[34px] w-[34px] shrink-0 cursor-pointer items-center justify-center
+    rounded-lg border border-border bg-panel2 text-[15px] text-text
+    transition-colors hover:border-accent;
+}
+
+/* 主按钮（渐变） */
+.btn-primary {
+  @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg
+    border-none bg-[linear-gradient(135deg,var(--accent),var(--accent2))]
+    px-4 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90
+    active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+/* 幽灵按钮 */
+.btn-ghost {
+  @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg
+    border border-border bg-panel2 px-3.5 py-2 text-[13px] text-text
+    transition-colors hover:border-accent disabled:cursor-not-allowed disabled:opacity-50;
+}
+.btn-ghost-sm {
+  @apply px-3 py-1.5 text-xs;
+}
+
+/* 危险按钮 */
+.btn-danger {
+  @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg
+    border border-[rgba(245,63,63,0.5)] bg-[rgba(245,63,63,0.12)] px-3.5 py-2
+    text-[13px] text-err transition-colors hover:border-err
+    disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+/* 迷你按钮（表格内联操作） */
+.btn-mini {
+  @apply cursor-pointer rounded-md border border-border bg-panel2 px-3 py-1
+    text-xs text-text transition-colors hover:border-accent;
+}
+
+/* 表单 */
+.field {
+  @apply mb-3.5;
+}
+.field-label {
+  @apply mb-1.5 block text-xs text-muted;
+}
+.input-text,
+.input-select {
+  @apply w-full cursor-pointer rounded-lg border border-border bg-panel2 px-3 py-2
+    text-[13px] text-text outline-none transition-colors focus:border-accent;
+}
+.input-text {
+  cursor: text;
+}
+textarea.input-text {
+  @apply resize-y leading-relaxed;
+}
+.check {
+  @apply flex cursor-pointer items-center gap-2 text-xs text-muted;
+}
+.check input {
+  width: auto;
+}
+
+/* 卡片 */
+.card {
+  @apply rounded-xl border border-border bg-panel p-4;
+}
+
+/* 章节标题 */
+.section-title {
+  @apply mb-3 mt-5 text-[13px] font-semibold tracking-wide text-muted uppercase first:mt-0;
+}
+
+/* 空状态 */
+.empty {
+  @apply flex min-h-[200px] flex-col items-center justify-center gap-2
+    rounded-xl border-2 border-dashed border-border p-8 text-center text-[13px] text-muted;
+}
+
+/* 加载 */
+.loading {
+  @apply flex items-center justify-center gap-2.5 py-12 text-[13px] text-muted;
+}
+.spinner {
+  @apply size-4 shrink-0 animate-spin rounded-full border-2 border-border2 border-t-accent;
+}
+
+/* 标签 */
+.tag {
+  @apply inline-flex shrink-0 whitespace-nowrap rounded border border-border bg-panel3
+    px-[7px] py-0.5 text-[10px] text-muted;
+}
+.tag-video {
+  @apply border-[rgba(0,158,250,0.4)] text-accent;
+}
+.tag-free {
+  @apply border-[rgba(0,190,147,0.35)] text-ok;
+}
+
+/* 列表行 */
+.row-list {
+  @apply flex flex-col gap-2;
+}
+.row-item {
+  @apply flex min-w-0 cursor-pointer items-center gap-3 rounded-lg border
+    border-border bg-panel px-3.5 py-2.5 transition-colors hover:border-accent;
+}
+.ri-main {
+  @apply min-w-0 flex-1;
+}
+.ri-title {
+  @apply truncate text-[13px];
+}
+.ri-sub {
+  @apply mt-0.5 truncate text-xs text-muted;
+}
+.ri-side {
+  @apply flex shrink-0 items-center gap-2 text-xs text-faint;
+}
+
+/* 筛选条 */
+.filter-bar {
+  @apply mb-3.5 flex flex-wrap items-center gap-2.5;
+}
+.filter-bar select,
+.filter-bar input {
+  @apply min-w-[130px];
+  width: auto;
+}
+
+/* 缩略图条 */
+.thumb-strip {
+  @apply flex gap-1.5 overflow-x-auto pb-0.5;
+}
+.thumb-strip img {
+  @apply size-[52px] shrink-0 cursor-pointer rounded-md border border-border bg-black object-cover
+    transition-colors hover:border-accent;
+}
+
+/* 生成中呼吸点 */
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.8);
+  }
+}
+.animate-breathe {
+  animation: breathe 1.4s ease-in-out infinite;
+}
+.gen-dot {
+  @apply size-[7px] shrink-0 rounded-full bg-accent;
+  animation: breathe 1.4s ease-in-out infinite;
+}
+
+/* 元数据表 */
+.meta-table {
+  @apply mt-3.5 w-full border-collapse text-xs;
+}
+.meta-table th,
+.meta-table td {
+  @apply border-b border-border px-2 py-[7px] text-left align-top;
+}
+.meta-table th {
+  @apply w-[74px] shrink-0 whitespace-nowrap font-medium text-faint;
+}
+.meta-table td {
+  @apply break-all leading-relaxed text-text;
+}

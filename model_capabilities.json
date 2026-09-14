@@ -1,0 +1,50 @@
+{
+  "gpt-image-2": {
+    "supports_negative_prompt": false,
+    "supports_quality": false,
+    "supports_edits": true,
+    "max_reference_images": 16,
+    "max_reference_size_mb": 25,
+    "supported_reference_formats": ["png", "jpeg", "webp"],
+    "supported_sizes": [
+      {"size": "2880x2880", "ratio": "1:1", "label": "最高质量"},
+      {"size": "2048x2048", "ratio": "1:1", "label": "中等"},
+      {"size": "1254x1254", "ratio": "1:1", "label": "最低质量"},
+
+      {"size": "2304x3456", "ratio": "2:3", "label": "最高质量"},
+      {"size": "1536x2304", "ratio": "2:3", "label": "中等"},
+      {"size": "1029x1528", "ratio": "2:3", "label": "最低质量"},
+
+      {"size": "3456x2304", "ratio": "3:2", "label": "最高质量"},
+      {"size": "2304x1536", "ratio": "3:2", "label": "中等"},
+      {"size": "1528x1029", "ratio": "3:2", "label": "最低质量"},
+
+      {"size": "3200x2400", "ratio": "4:3", "label": "最高质量"},
+      {"size": "2048x1536", "ratio": "4:3", "label": "中等"},
+      {"size": "1448x1086", "ratio": "4:3", "label": "最低质量"},
+
+      {"size": "2400x3200", "ratio": "3:4", "label": "最高质量"},
+      {"size": "1536x2048", "ratio": "3:4", "label": "中等"},
+      {"size": "1086x1448", "ratio": "3:4", "label": "最低质量"},
+
+      {"size": "3824x2144", "ratio": "16:9", "label": "最高质量"},
+      {"size": "2560x1440", "ratio": "16:9", "label": "中等"},
+      {"size": "1920x1080", "ratio": "16:9", "label": "常用"},
+      {"size": "1672x940", "ratio": "16:9", "label": "最低质量"},
+
+      {"size": "2144x3824", "ratio": "9:16", "label": "最高质量"},
+      {"size": "1440x2560", "ratio": "9:16", "label": "中等"},
+      {"size": "940x1672", "ratio": "9:16", "label": "最低质量"},
+
+      {"size": "3824x1632", "ratio": "21:9", "label": "最高质量"},
+      {"size": "2560x1080", "ratio": "21:9", "label": "中等"},
+      {"size": "1913x822", "ratio": "21:9", "label": "最低质量"},
+
+      {"size": "1632x3824", "ratio": "9:21", "label": "最高质量"},
+      {"size": "1080x2560", "ratio": "9:21", "label": "中等"},
+      {"size": "822x1914", "ratio": "9:21", "label": "最低质量"}
+    ],
+    "quality_options": [],
+    "notes": "实测（2026-09-12，网关 ai.lightwheel.net:8086，多轮探测）：网关按请求宽高比出图，规律为①长边≥约1500时精确命中请求值，小尺寸被向上重映射到原生分辨率；②总像素上限约8.3MP（超出被钳制），长边上限约3824。supported_sizes 已按实测实际输出值分档（label=最高质量/中等/最低质量，16:9 额外保留常用档），size=实测实际值，前端展示值即实际输出。最低质量档为「约1024长边」请求的实测重映射值：1024x1024→1254x1254、683x1024→1029x1528、1024x768→1448x1086、720x1280→940x1672、1024x439→1913x822（21:9/9:21 原生下限长边约1913）。16:9 常用档保留 1920x1080（1080p），其 1672x940（720p 实测）归为最低质量。quality/negative_prompt 网关不校验（无效值亦返回200出图），维持不支持。无动态能力接口（/v1/models 未列出 gpt-image-2 且无尺寸/质量元数据），维持静态配置。"
+  }
+}
