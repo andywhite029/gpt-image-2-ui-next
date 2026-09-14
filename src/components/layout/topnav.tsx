@@ -4,13 +4,15 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Monitor, Moon, PanelLeft, Search, Settings, Sparkles, Sun } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useUI } from "@/app/providers";
 
 const THEME_ORDER = ["dark", "light", "system"] as const;
-const THEME_ICON: Record<string, string> = {
-  dark: "🌙",
-  light: "☀️",
-  system: "🖥",
+const THEME_ICON: Record<string, LucideIcon> = {
+  dark: Moon,
+  light: Sun,
+  system: Monitor,
 };
 
 export function TopNav() {
@@ -32,6 +34,7 @@ export function TopNav() {
 
   const themeLabel =
     theme === "system" ? "跟随系统" : theme === "dark" ? "深色" : "浅色";
+  const ThemeIcon = THEME_ICON[theme] ?? Monitor;
 
   return (
     <header className="relative z-30 flex h-[52px] shrink-0 items-center gap-3 border-b border-border bg-panel px-3.5">
@@ -42,10 +45,10 @@ export function TopNav() {
         aria-label="折叠或展开侧栏"
         onClick={toggleSidebar}
       >
-        ☰
+        <PanelLeft size={16} strokeWidth={1.8} aria-hidden="true" />
       </button>
       <a className="flex items-center gap-2 whitespace-nowrap text-[15px] font-bold text-text hover:no-underline hover:opacity-90" href="/">
-        <span aria-hidden="true">🎨</span>
+        <Sparkles size={16} strokeWidth={1.8} className="shrink-0 text-accent" aria-hidden="true" />
         <span className="max-[560px]:hidden">gpt-image-2 工作台</span>
       </a>
       <form className="relative mx-auto w-full max-w-[520px]" role="search" onSubmit={onSearchSubmit}>
@@ -57,8 +60,8 @@ export function TopNav() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <span className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-[13px] opacity-60">
-          🔍
+        <span className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-faint">
+          <Search size={14} strokeWidth={1.8} aria-hidden="true" />
         </span>
       </form>
       <div className="ml-auto flex items-center gap-2">
@@ -69,10 +72,10 @@ export function TopNav() {
           aria-label={`切换主题（当前${themeLabel}）`}
           onClick={cycleTheme}
         >
-          {THEME_ICON[theme] ?? "🖥"}
+          <ThemeIcon size={16} strokeWidth={1.8} aria-hidden="true" />
         </button>
         <button type="button" className="btn-ghost btn-ghost-sm" onClick={() => setSettingsOpen(true)}>
-          <span aria-hidden="true">⚙</span> 设置
+          <Settings size={14} strokeWidth={1.8} aria-hidden="true" /> 设置
         </button>
       </div>
     </header>

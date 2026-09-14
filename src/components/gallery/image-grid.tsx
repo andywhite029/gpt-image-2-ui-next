@@ -3,6 +3,7 @@
 // 图片网格：auto-fill minmax(160px,1fr)，横图跨 3 列、竖图跨 2 列
 
 import { useState } from "react";
+import { Star } from "lucide-react";
 import { imageThumbUrl } from "@/lib/api-client";
 import type { ImageSummary } from "@/types/entities";
 
@@ -68,16 +69,14 @@ function GridItem({
         </div>
       )}
 
-      {/* 收藏星 */}
+      {/* 收藏星（已收藏常驻 + 弹出动效；未收藏 hover 淡入） */}
       <span
         className={
-          "pointer-events-none absolute top-1.5 right-1.5 text-[15px] leading-none opacity-0 transition-opacity group-hover:opacity-100 " +
-          (image.isFavorited
-            ? "text-warn opacity-100"
-            : "text-transparent [text-shadow:0_0_3px_rgba(0,0,0,0.9)]")
+          "pointer-events-none absolute top-1.5 right-1.5 leading-none opacity-0 transition-opacity group-hover:opacity-100 " +
+          (image.isFavorited ? "text-warn opacity-100 anim-pop" : "text-white/90 [text-shadow:0_0_3px_rgba(0,0,0,0.9)]")
         }
       >
-        ★
+        <Star size={15} strokeWidth={1.8} fill={image.isFavorited ? "currentColor" : "none"} />
       </span>
 
       {/* partial badge（来源批次失败） */}

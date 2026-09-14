@@ -33,9 +33,9 @@ if not exist data\app.db (
     )
 )
 
-start "" http://127.0.0.1:8787
+start "" http://localhost:8787
 echo 启动 gpt-image-2 创作工作台...
-echo 浏览器地址： http://127.0.0.1:8787
+echo 浏览器地址： http://localhost:8787
 echo 按 Ctrl+C 或关闭窗口退出。
 call npm run dev
 pause

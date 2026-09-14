@@ -66,24 +66,48 @@ export function useModal(): ModalAPI {
 
 interface StackEntry extends ModalRequest {
   id: number;
+  closing: boolean; // 出场动画中
   close: () => void;
 }
 
 let nextId = 1;
 
+/** 出场动画时长（prefers-reduced-motion 时为 0） */
+function exitDelayMs(): number {
+  if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+    return 0;
+  }
+  return 160;
+}
+
 export function ModalProvider({ children }: { children: ReactNode }) {
   const [stack, setStack] = useState<StackEntry[]>([]);
+  const closingRef = useRef<Set<number>>(new Set());
 
   const remove = useCallback((id: number) => {
     setStack((prev) => prev.filter((s) => s.id !== id));
   }, []);
 
+  // 先置 closing 播出场动画，动画结束后真正移除
+  const beginClose = useCallback(
+    (id: number) => {
+      if (closingRef.current.has(id)) return;
+      closingRef.current.add(id);
+      setStack((prev) => prev.map((s) => (s.id === id ? { ...s, closing: true } : s)));
+      setTimeout(() => {
+        closingRef.current.delete(id);
+        remove(id);
+      }, exitDelayMs());
+    },
+    [remove]
+  );
+
   const openModal = useCallback(
     (req: ModalRequest) => {
       const id = nextId++;
-      setStack((prev) => [...prev, { ...req, id, close: () => remove(id) }]);
+      setStack((prev) => [...prev, { ...req, id, closing: false, close: () => beginClose(id) }]);
     },
-    [remove]
+    [beginClose]
   );
 
   const confirmModal = useCallback(
@@ -103,11 +127,12 @@ export function ModalProvider({ children }: { children: ReactNode }) {
           }
         };
         const id = nextId++;
-        const close = () => remove(id);
+        const close = () => beginClose(id);
         setStack((prev) => [
           ...prev,
           {
             id,
+            closing: false,
             close,
             title: opts.title ?? "确认操作",
             body: <p className="text-[13px] leading-relaxed text-muted">{opts.message}</p>,
@@ -132,7 +157,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
           },
         ]);
       }),
-    [remove]
+    [beginClose]
   );
 
   const promptModal = useCallback(
@@ -148,14 +173,14 @@ export function ModalProvider({ children }: { children: ReactNode }) {
         const id = nextId++;
         const close = () => {
           done(null);
-          remove(id);
+          beginClose(id);
         };
         const content = (
           <PromptBody
             opts={opts}
             onDone={(v) => {
               done(v);
-              remove(id);
+              beginClose(id);
             }}
           />
         );
@@ -163,6 +188,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
           ...prev,
           {
             id,
+            closing: false,
             close,
             title: opts.title,
             body: content,
@@ -189,16 +215,16 @@ export function ModalProvider({ children }: { children: ReactNode }) {
           },
         ]);
       }),
-    [remove]
+    [beginClose]
   );
 
-  // Escape 关闭最上层
+  // Escape 关闭最上层（出场中的不算）
   useEffect(() => {
     if (!stack.length) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation();
-        const top = stack[stack.length - 1];
+        const top = [...stack].reverse().find((s) => !s.closing);
         if (top) top.close();
       }
     };
@@ -211,16 +237,19 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   return (
     <ModalContext.Provider value={api}>
       {children}
-      {stack.map((entry, i) => (
-        <ModalDialog
-          key={entry.id}
-          entry={entry}
-          onBackdrop={() => {
-            // 仅最上层弹窗响应遮罩点击
-            if (i === stack.length - 1) entry.close();
-          }}
-        />
-      ))}
+      {stack.map((entry, i) => {
+        // 仅最上层非出场中的弹窗响应遮罩点击
+        const topIndex = stack.length - 1 - [...stack].reverse().findIndex((s) => !s.closing);
+        return (
+          <ModalDialog
+            key={entry.id}
+            entry={entry}
+            onBackdrop={() => {
+              if (i === topIndex) entry.close();
+            }}
+          />
+        );
+      })}
     </ModalContext.Provider>
   );
 }
@@ -244,6 +273,26 @@ export function Modal({
   footer?: ReactNode;
   wide?: boolean;
 }) {
+  // 出场动画：open=false 后延迟卸载
+  const [mounted, setMounted] = useState(open);
+  const mountedRef = useRef(open);
+
+  useEffect(() => {
+    if (open) {
+      if (!mountedRef.current) {
+        mountedRef.current = true;
+        setMounted(true);
+      }
+      return;
+    }
+    if (!mountedRef.current) return;
+    const t = setTimeout(() => {
+      mountedRef.current = false;
+      setMounted(false);
+    }, exitDelayMs());
+    return () => clearTimeout(t);
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -253,10 +302,14 @@ export function Modal({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!mounted) return null;
+  const closing = !open && mounted;
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(5,7,10,0.72)] p-5 backdrop-blur-sm"
+      className={
+        "modal-overlay fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(5,7,10,0.72)] p-5 backdrop-blur-sm"
+      }
+      data-closing={closing ? "" : undefined}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -265,7 +318,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         className={
-          "max-h-[calc(100vh-40px)] w-full overflow-y-auto rounded-2xl border border-border bg-panel p-5 shadow-2xl " +
+          "modal-dialog max-h-[calc(100vh-40px)] w-full overflow-y-auto rounded-2xl border border-border bg-panel p-5 shadow-2xl " +
           (wide ? "max-w-[720px]" : "max-w-[520px]")
         }
       >
@@ -274,7 +327,7 @@ export function Modal({
           <button
             type="button"
             aria-label="关闭"
-            className="flex size-[30px] shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border bg-panel2 text-lg text-muted transition-colors hover:border-accent hover:text-text"
+            className="flex size-[30px] shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border bg-panel2 text-lg text-muted transition-colors hover:border-border2 hover:bg-panel3 hover:text-text"
             onClick={onClose}
           >
             ×
@@ -305,7 +358,8 @@ function ModalDialog({ entry, onBackdrop }: { entry: StackEntry; onBackdrop: () 
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(5,7,10,0.72)] p-5 backdrop-blur-sm"
+      className="modal-overlay fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(5,7,10,0.72)] p-5 backdrop-blur-sm"
+      data-closing={entry.closing ? "" : undefined}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onBackdrop();
       }}
@@ -315,7 +369,7 @@ function ModalDialog({ entry, onBackdrop }: { entry: StackEntry; onBackdrop: () 
         role="dialog"
         aria-modal="true"
         className={
-          "max-h-[calc(100vh-40px)] w-full overflow-y-auto rounded-2xl border border-border bg-panel p-5 shadow-2xl " +
+          "modal-dialog max-h-[calc(100vh-40px)] w-full overflow-y-auto rounded-2xl border border-border bg-panel p-5 shadow-2xl " +
           (entry.wide ? "max-w-[720px]" : "max-w-[520px]")
         }
       >
@@ -324,7 +378,7 @@ function ModalDialog({ entry, onBackdrop }: { entry: StackEntry; onBackdrop: () 
           <button
             type="button"
             aria-label="关闭"
-            className="flex size-[30px] shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border bg-panel2 text-lg text-muted transition-colors hover:border-accent hover:text-text"
+            className="flex size-[30px] shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border bg-panel2 text-lg text-muted transition-colors hover:border-border2 hover:bg-panel3 hover:text-text"
             onClick={entry.close}
           >
             ×

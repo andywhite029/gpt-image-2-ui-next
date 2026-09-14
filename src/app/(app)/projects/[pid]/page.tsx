@@ -2,8 +2,9 @@
 
 // 项目概览：头部 + 统计卡 + 分类网格（拖拽排序）+ 最近对话 + 最近图片
 
-import { use, useRef, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Archive, ArchiveRestore, FolderPlus, MessageSquarePlus, MoreHorizontal, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { endpoints, errorText } from "@/lib/api-client";
 import { useProjectOverview } from "@/hooks/use-projects";
@@ -27,6 +28,18 @@ export default function ProjectOverviewPage({
   const qc = useQueryClient();
   const { data, isLoading, error } = useProjectOverview(pid);
   const [lightboxId, setLightboxId] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false); // 头部「更多」下拉菜单
+
+  // 菜单外点击关闭
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDocMouseDown = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, [menuOpen]);
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["projects"] });
@@ -157,18 +170,75 @@ export default function ProjectOverviewPage({
         }
         actions={
           <>
-            <button type="button" className="btn-ghost btn-ghost-sm" onClick={openEditProject}>
-              ✎ 编辑
+            {/* 主操作：新建对话 */}
+            <button
+              type="button"
+              className="btn-primary px-3.5! py-1.5!"
+              onClick={openCreateConversation}
+            >
+              <MessageSquarePlus size={14} strokeWidth={1.8} aria-hidden="true" /> 新建对话
             </button>
-            <button type="button" className="btn-ghost btn-ghost-sm" onClick={toggleArchived}>
-              {project.archived ? "取消归档" : "🗃 归档"}
-            </button>
-            <button type="button" className="btn-ghost btn-ghost-sm" onClick={openCreateCategory}>
-              ＋ 分类
-            </button>
-            <button type="button" className="btn-ghost btn-ghost-sm" onClick={openCreateConversation}>
-              ＋ 对话
-            </button>
+            {/* 次要操作收进「更多」菜单 */}
+            <div className="relative" ref={menuRef}>
+              <button
+                type="button"
+                title="More Actions"
+                aria-label="More Actions"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                className="btn-ghost btn-ghost-sm px-2!"
+                onClick={() => setMenuOpen((v) => !v)}
+              >
+                <MoreHorizontal size={15} strokeWidth={1.8} aria-hidden="true" />
+              </button>
+              {menuOpen && (
+                <div
+                  role="menu"
+                  className="anim-menu-in absolute right-0 top-full z-30 mt-1 min-w-[140px] rounded-lg border border-border bg-panel py-1 shadow-xl origin-top-right!"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[13px] text-text hover:bg-panel2"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      openEditProject();
+                    }}
+                  >
+                    <Pencil size={14} strokeWidth={1.8} className="shrink-0 text-muted" aria-hidden="true" />
+                    编辑
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[13px] text-text hover:bg-panel2"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      toggleArchived();
+                    }}
+                  >
+                    {project.archived ? (
+                      <ArchiveRestore size={14} strokeWidth={1.8} className="shrink-0 text-muted" aria-hidden="true" />
+                    ) : (
+                      <Archive size={14} strokeWidth={1.8} className="shrink-0 text-muted" aria-hidden="true" />
+                    )}
+                    {project.archived ? "取消归档" : "归档"}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[13px] text-text hover:bg-panel2"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      openCreateCategory();
+                    }}
+                  >
+                    <FolderPlus size={14} strokeWidth={1.8} className="shrink-0 text-muted" aria-hidden="true" />
+                    新建分类
+                  </button>
+                </div>
+              )}
+            </div>
           </>
         }
       />
@@ -215,7 +285,7 @@ export default function ProjectOverviewPage({
       {/* 最近对话 */}
       <div className="section-title">最近对话</div>
       {!recentConvs.length ? (
-        <Empty text="还没有对话，点击「＋ 对话」创建" />
+        <Empty text="还没有对话，点击「新建对话」创建" />
       ) : (
         <div className="row-list">
           {recentConvs.map((c) => (

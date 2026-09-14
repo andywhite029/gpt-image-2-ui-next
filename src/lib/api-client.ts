@@ -286,6 +286,11 @@ export const endpoints = {
     }),
   deleteConversation: (cid: string) =>
     api<{ success: boolean }>(`/api/conversations/${encodeURIComponent(cid)}`, { method: "DELETE" }),
+  moveConversation: (cid: string, d: { project_id: string; category_id?: string | null }) =>
+    api<{ success: boolean; conversation: Conversation; moved: boolean }>(
+      `/api/conversations/${encodeURIComponent(cid)}/move`,
+      { method: "POST", ...jsonBody(d) }
+    ),
 
   // ---- 生成 ----
   generate: (pid: string, cid: string, payload: GeneratePayload) =>

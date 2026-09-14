@@ -5,6 +5,7 @@
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { FolderOpen, Link2, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { endpoints, errorText, imageUrl, referenceFileUrl, copyText, type GenerateResponse } from "@/lib/api-client";
@@ -57,6 +58,18 @@ export default function ConversationPage({
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [retrying, setRetrying] = useState<Set<string>>(new Set());
+  const [menuOpen, setMenuOpen] = useState(false); // 顶栏「更多」下拉菜单
+
+  // 菜单外点击关闭
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDocMouseDown = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, [menuOpen]);
 
   const streamRef = useRef<HTMLDivElement>(null);
   const userNearBottomRef = useRef(true);
@@ -170,6 +183,13 @@ export default function ConversationPage({
     } catch (e) {
       toast.error("删除失败：" + errorText(e));
     }
+  };
+
+  // 复制当前对话链接
+  const onCopyConversationLink = async () => {
+    const ok = await copyText(window.location.href);
+    if (ok) toast.success("已复制对话链接");
+    else toast.error("复制失败，请手动复制地址栏链接");
   };
 
   const onSubmitted = useCallback(
@@ -322,37 +342,80 @@ export default function ConversationPage({
                 type="button"
                 title="修改标题"
                 aria-label="修改对话标题"
-                className="flex size-[26px] shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border bg-panel2 text-[13px] text-muted hover:border-accent hover:text-text"
+                className="flex size-[26px] shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border bg-panel2 text-muted transition-colors hover:border-accent hover:text-text"
                 onClick={() => {
                   setTitleDraft(conversation.title ?? "");
                   setEditingTitle(true);
                 }}
               >
-                ✎
+                <Pencil size={13} strokeWidth={1.8} aria-hidden="true" />
               </button>
             </>
           )}
         </div>
-        <select
-          className="input-select w-auto max-w-[180px]"
-          aria-label="移动分类"
-          value={conversation.categoryId ?? ""}
-          onChange={(e) => onCategoryChange(e.target.value)}
-        >
-          <option value="">未分类</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          className="cursor-pointer rounded-lg border border-[rgba(245,63,63,0.4)] bg-transparent px-3 py-1.5 text-[13px] text-err hover:bg-[rgba(245,63,63,0.12)]"
-          onClick={onDeleteConversation}
-        >
-          删除对话
-        </button>
+        {/* 位置（分类）+ 更多操作 */}
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="flex items-center gap-1 text-muted" title="所属分类">
+            <FolderOpen size={13} strokeWidth={1.8} aria-hidden="true" />
+          </span>
+          <select
+            className="input-select w-auto max-w-[180px]"
+            aria-label="移动分类"
+            value={conversation.categoryId ?? ""}
+            onChange={(e) => onCategoryChange(e.target.value)}
+          >
+            <option value="">未分类</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          <div className="relative" ref={menuRef}>
+            <button
+              type="button"
+              title="More Actions"
+              aria-label="More Actions"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              className="btn-ghost px-2! py-1.5!"
+              onClick={() => setMenuOpen((v) => !v)}
+            >
+              <MoreHorizontal size={15} strokeWidth={1.8} aria-hidden="true" />
+            </button>
+            {menuOpen && (
+              <div
+                role="menu"
+                className="anim-menu-in absolute right-0 top-full z-30 mt-1 min-w-[140px] rounded-lg border border-border bg-panel py-1 shadow-xl origin-top-right!"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[13px] text-text hover:bg-panel2"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onCopyConversationLink();
+                  }}
+                >
+                  <Link2 size={14} strokeWidth={1.8} className="shrink-0 text-muted" aria-hidden="true" />
+                  复制对话链接
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[13px] text-err hover:bg-[rgba(245,63,63,0.08)]"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onDeleteConversation();
+                  }}
+                >
+                  <Trash2 size={14} strokeWidth={1.8} className="shrink-0" aria-hidden="true" />
+                  删除对话
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* 消息流 */}

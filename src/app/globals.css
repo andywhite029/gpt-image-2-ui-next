@@ -16,6 +16,12 @@
   --warn: #ff922e;
   --err: #f53f3f;
   --unknown: #8a5cff;
+  /* 运动令牌（macOS HIG：短促减速曲线，120–240ms） */
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 240ms;
+  --ease-out-quiet: cubic-bezier(0.22, 1, 0.36, 1); /* macOS 通用减速 */
+  --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1); /* macOS 弹窗/sheet 曲线 */
 }
 
 html[data-theme="dark"] {
@@ -93,28 +99,42 @@ a:hover {
   background: transparent;
 }
 
-/* ---------- 通用基础类（与旧版视觉一致的原子组合） ---------- */
+/* ---------- 通用基础类（HIG 化：hover 背景+边框+阴影反馈，active 按压，focus-visible 焦点环） ---------- */
+
+/* 焦点可见性（键盘导航，所有交互元素统一焦点环） */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+.input-text:focus-visible,
+.input-select:focus-visible {
+  outline: none; /* 输入框用 border-accent 反馈，避免双重指示 */
+}
 
 /* 图标按钮 */
 .btn-icon {
   @apply inline-flex h-[34px] w-[34px] shrink-0 cursor-pointer items-center justify-center
-    rounded-lg border border-border bg-panel2 text-[15px] text-text
-    transition-colors hover:border-accent;
+    rounded-lg border border-border bg-panel2 text-text transition-all duration-[var(--dur-fast)]
+    hover:border-border2 hover:bg-panel3 active:scale-[0.97]
+    disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 /* 主按钮（渐变） */
 .btn-primary {
   @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg
     border-none bg-[linear-gradient(135deg,var(--accent),var(--accent2))]
-    px-4 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90
-    active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+    px-4 py-2 text-[13px] font-semibold text-white transition-all
+    duration-[var(--dur-fast)] hover:brightness-[1.05] active:scale-[0.98]
+    disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 /* 幽灵按钮 */
 .btn-ghost {
   @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg
     border border-border bg-panel2 px-3.5 py-2 text-[13px] text-text
-    transition-colors hover:border-accent disabled:cursor-not-allowed disabled:opacity-50;
+    transition-all duration-[var(--dur-fast)] hover:border-border2 hover:bg-panel3
+    active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50;
 }
 .btn-ghost-sm {
   @apply px-3 py-1.5 text-xs;
@@ -124,14 +144,17 @@ a:hover {
 .btn-danger {
   @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg
     border border-[rgba(245,63,63,0.5)] bg-[rgba(245,63,63,0.12)] px-3.5 py-2
-    text-[13px] text-err transition-colors hover:border-err
+    text-[13px] text-err transition-all duration-[var(--dur-fast)]
+    hover:border-err hover:bg-[rgba(245,63,63,0.18)] active:scale-[0.97]
     disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 /* 迷你按钮（表格内联操作） */
 .btn-mini {
   @apply cursor-pointer rounded-md border border-border bg-panel2 px-3 py-1
-    text-xs text-text transition-colors hover:border-accent;
+    text-xs text-text transition-all duration-[var(--dur-fast)]
+    hover:border-border2 hover:bg-panel3 active:scale-[0.97]
+    disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 /* 表单 */
@@ -201,7 +224,8 @@ textarea.input-text {
 }
 .row-item {
   @apply flex min-w-0 cursor-pointer items-center gap-3 rounded-lg border
-    border-border bg-panel px-3.5 py-2.5 transition-colors hover:border-accent;
+    border-border bg-panel px-3.5 py-2.5 transition-all duration-[var(--dur-fast)]
+    hover:border-border2 hover:bg-panel2;
 }
 .ri-main {
   @apply min-w-0 flex-1;
@@ -232,7 +256,7 @@ textarea.input-text {
 }
 .thumb-strip img {
   @apply size-[52px] shrink-0 cursor-pointer rounded-md border border-border bg-black object-cover
-    transition-colors hover:border-accent;
+    transition-all duration-[var(--dur-fast)] hover:border-accent hover:opacity-90;
 }
 
 /* 生成中呼吸点 */
@@ -268,4 +292,231 @@ textarea.input-text {
 }
 .meta-table td {
   @apply break-all leading-relaxed text-text;
+}
+
+/* ---------- 动效基建（macOS HIG：短促、减速、克制） ---------- */
+
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes overlay-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes dialog-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes lb-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes lb-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@keyframes pop-favorite {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.35);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Modal：overlay 淡入 + dialog 上浮缩放进场；data-closing 驱动出场 */
+.modal-overlay {
+  animation: overlay-in var(--dur-fast) ease-out;
+}
+.modal-overlay[data-closing] {
+  animation: overlay-out var(--dur-fast) ease-in forwards;
+  pointer-events: none; /* 出场期间不可再交互 */
+}
+.modal-dialog {
+  animation: dialog-in var(--dur-base) var(--ease-sheet);
+}
+.modal-overlay[data-closing] .modal-dialog {
+  animation: dialog-out 140ms var(--ease-out-quiet) forwards;
+}
+
+/* 右键/下拉菜单 */
+.anim-menu-in {
+  animation: menu-in var(--dur-fast) var(--ease-out-quiet);
+  transform-origin: top left;
+}
+
+/* 路由进场 */
+.anim-page-in {
+  animation: page-in var(--dur-base) var(--ease-out-quiet);
+}
+
+/* 侧栏树展开/收起（0fr↔1fr 网格行过渡） */
+.tree-children {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-base) var(--ease-out-quiet);
+}
+.tree-children[data-open="true"] {
+  grid-template-rows: 1fr;
+}
+.tree-children > div {
+  min-height: 0; /* 收缩关键 */
+  overflow: hidden;
+}
+
+/* Lightbox 图片交叉淡化 */
+.lb-img-in {
+  animation: lb-fade-in 220ms ease-out;
+}
+.lb-img-out {
+  animation: lb-fade-out 220ms ease-in forwards;
+}
+
+/* 收藏星弹出 */
+.anim-pop {
+  animation: pop-favorite 300ms var(--ease-out-quiet);
+}
+
+/* 骨架屏 */
+.skeleton {
+  background: linear-gradient(100deg, var(--panel2) 40%, var(--panel3) 50%, var(--panel2) 60%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+  border-radius: 8px;
+}
+
+/* 生成按钮（参考 Lottie 16-9.json：白色胶囊 + 渐变描边 + 紫青光晕 + 按压回弹） */
+.btn-generate {
+  position: relative;
+  display: inline-flex;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 9999px;
+  border: 1.5px solid transparent;
+  padding: 10px 30px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--accent);
+  background:
+    linear-gradient(var(--panel), var(--panel)) padding-box,
+    linear-gradient(135deg, #ef90ff, #85e2ff, #00cae0) border-box;
+  box-shadow:
+    0 0 20px rgba(0, 158, 250, 0.28),
+    0 0 44px rgba(239, 144, 255, 0.18);
+  transition: all var(--dur-fast) var(--ease-out-quiet);
+}
+.btn-generate:hover {
+  box-shadow:
+    0 0 28px rgba(0, 158, 250, 0.4),
+    0 0 64px rgba(239, 144, 255, 0.28);
+  filter: brightness(1.02);
+}
+.btn-generate:active {
+  transform: scale(0.95);
+}
+.btn-generate:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  box-shadow: 0 0 12px rgba(0, 158, 250, 0.15);
+}
+/* 生成中：光晕呼吸 */
+.btn-generate[data-busy="true"] {
+  animation: gen-glow-breathe 1.6s ease-in-out infinite;
+}
+@keyframes gen-glow-breathe {
+  0%,
+  100% {
+    box-shadow:
+      0 0 20px rgba(0, 158, 250, 0.28),
+      0 0 44px rgba(239, 144, 255, 0.18);
+  }
+  50% {
+    box-shadow:
+      0 0 32px rgba(0, 158, 250, 0.5),
+      0 0 72px rgba(239, 144, 255, 0.34);
+  }
+}
+
+/* 拖放目标高亮（侧边栏） */
+.drop-target-active {
+  outline: 1px dashed var(--accent);
+  outline-offset: -1px;
+  background: rgba(0, 158, 250, 0.08);
+}
+
+/* 运动减弱总开关（系统无障碍偏好） */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

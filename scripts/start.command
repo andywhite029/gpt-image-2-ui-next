@@ -22,9 +22,9 @@ if [ ! -f data/app.db ]; then
 fi
 
 # 延时 2 秒后打开浏览器（等端口绑定完成）
-( sleep 2; open http://127.0.0.1:8787 2>/dev/null || xdg-open http://127.0.0.1:8787 2>/dev/null ) &
+( sleep 2; open http://localhost:8787 2>/dev/null || xdg-open http://localhost:8787 2>/dev/null ) &
 
 echo "启动 gpt-image-2 创作工作台..."
-echo "浏览器地址： http://127.0.0.1:8787"
+echo "浏览器地址： http://localhost:8787"
 echo "按 Ctrl+C 退出。"
 npm run dev

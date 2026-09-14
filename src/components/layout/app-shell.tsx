@@ -3,6 +3,7 @@
 // 应用外壳：TopNav + Sidebar + Breadcrumb + 页面内容 + 全局设置弹窗
 // 由 src/app/(app)/layout.tsx 使用
 
+import { usePathname } from "next/navigation";
 import { useUI } from "@/app/providers";
 import { TopNav } from "@/components/layout/topnav";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -12,6 +13,7 @@ import { ModalProvider } from "@/components/ui/modal";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { sidebarCollapsed } = useUI();
+  const pathname = usePathname();
 
   return (
     <ModalProvider>
@@ -34,7 +36,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <main className="flex min-w-0 flex-1 flex-col bg-bg">
             <Breadcrumb />
             <div className="flex-1 overflow-y-auto p-5 pb-15 max-[900px]:p-3.5 max-[900px]:pb-12">
-              {children}
+              {/* 路由进场动画：pathname 变化时重新挂载；h-full 保持对话页等整页布局 */}
+              <div key={pathname} className="anim-page-in h-full">
+                {children}
+              </div>
             </div>
           </main>
         </div>

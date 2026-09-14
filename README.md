@@ -41,7 +41,7 @@ npx drizzle-kit push # 初始化数据库（首次）
 npm run dev          # 启动开发服务器
 ```
 
-打开 <http://127.0.0.1:8787>。
+打开 <http://localhost:8787>。
 
 macOS / Linux 可直接运行 `./scripts/start.command`。
 

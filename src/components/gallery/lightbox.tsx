@@ -2,8 +2,19 @@
 
 // 全屏图片查看器：左大图（左右箭头切换）+ 右侧 420px 详情面板
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Download,
+  Pencil,
+  Puzzle,
+  Star,
+  Trash2,
+  X,
+} from "lucide-react";
 import { endpoints, imageUrl, errorText, copyText, referenceFileUrl } from "@/lib/api-client";
 import { fmtFullTime, formatBytes } from "@/lib/format";
 import { useImageDetail, useCategoriesForImage, usePatchImage, useDeleteImage, useAddToReferenceLibrary } from "@/hooks/use-images";
@@ -42,25 +53,61 @@ export function Lightbox({
   const deleteImage = useDeleteImage();
   const addToRef = useAddToReferenceLibrary();
 
-  // 左右切换（siblingIds 内导航）
+  // 出场动画：先播放淡出，动画结束后再真正卸载（父组件不感知）
+  const [closing, setClosing] = useState(false);
+  const requestClose = useCallback(() => {
+    if (closing) return;
+    setClosing(true);
+    setTimeout(onClose, 160); // 动画结束后父组件卸载
+  }, [closing, onClose]);
+
+  // 图片交叉淡化：记录上一张的 src，切换时旧图淡出、新图淡入
+  const [prevSrc, setPrevSrc] = useState<string | null>(null);
+  const srcRef = useRef<string | null>(null);
+  const previewSrc = image
+    ? image.previewUrl ?? image.url ?? imageUrl.preview(image.id)
+    : null;
+  useEffect(() => {
+    // 详情切换时 previewSrc 会短暂经过 null（加载中），跳过 null 以保留旧图 src 供新图到达时交叉淡化
+    if (!previewSrc || srcRef.current === previewSrc) return;
+    const old = srcRef.current;
+    srcRef.current = previewSrc;
+    if (!old) return;
+    setPrevSrc(old);
+    const t = setTimeout(() => setPrevSrc(null), 220);
+    return () => clearTimeout(t);
+  }, [previewSrc]);
+
+  // 收藏星弹出：仅在灯箱内切为收藏时短暂触发
+  const [favPopAt, setFavPopAt] = useState(0);
+  const favPopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (favPopTimer.current) clearTimeout(favPopTimer.current);
+    };
+  }, []);
+
+  // 左右切换（siblingIds 内导航；出场中禁止切换）
   const idx = siblingIds.indexOf(imageId);
   const goPrev = useCallback(() => {
+    if (closing) return;
     if (idx > 0) onOpenImage?.(siblingIds[idx - 1]!);
-  }, [idx, siblingIds, onOpenImage]);
+  }, [closing, idx, siblingIds, onOpenImage]);
   const goNext = useCallback(() => {
+    if (closing) return;
     if (idx >= 0 && idx < siblingIds.length - 1) onOpenImage?.(siblingIds[idx + 1]!);
-  }, [idx, siblingIds, onOpenImage]);
+  }, [closing, idx, siblingIds, onOpenImage]);
 
   // 键盘：Esc 关闭 / 左右箭头切换
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") requestClose();
       else if (e.key === "ArrowLeft") goPrev();
       else if (e.key === "ArrowRight") goNext();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, goPrev, goNext]);
+  }, [requestClose, goPrev, goNext]);
 
   // 锁定 body 滚动
   useEffect(() => {
@@ -73,7 +120,7 @@ export function Lightbox({
 
   if (isLoading) {
     return (
-      <LightboxBackdrop onClose={onClose}>
+      <LightboxBackdrop onClose={requestClose} closing={closing}>
         <div className="flex flex-1 items-center justify-center gap-2.5 text-[13px] text-white">
           <span className="spinner" />
           <span>加载图片…</span>
@@ -84,7 +131,7 @@ export function Lightbox({
 
   if (error || !image) {
     return (
-      <LightboxBackdrop onClose={onClose}>
+      <LightboxBackdrop onClose={requestClose} closing={closing}>
         <div className="flex flex-1 items-center justify-center p-6">
           <div className="rounded-xl bg-panel px-8 py-6 text-[13px] text-muted">
             图片详情加载失败：{error ? errorText(error) : "未找到"}
@@ -96,7 +143,6 @@ export function Lightbox({
 
   const request = detail?.request ?? null;
   const params = (request?.parameters ?? {}) as Record<string, unknown>;
-  const previewSrc = image.previewUrl ?? image.url ?? imageUrl.preview(image.id);
   const noteValue = noteDraft ?? image.userNote ?? "";
 
   const doPatch = async (d: Parameters<typeof patchImage.mutateAsync>[0]) => {
@@ -120,7 +166,7 @@ export function Lightbox({
         JSON.stringify({ ...payload, extra_image_id: image.id })
       );
       toast.success("已填回输入区（进入对应对话后生效）");
-      onClose();
+      requestClose();
       if (onGoConversation) onGoConversation(image.projectId, image.conversationId);
     } catch (e) {
       toast.error(errorText(e));
@@ -128,6 +174,12 @@ export function Lightbox({
   };
 
   const onFav = async () => {
+    // 切为收藏时触发星标弹出动画
+    if (!image.isFavorited) {
+      setFavPopAt(Date.now());
+      if (favPopTimer.current) clearTimeout(favPopTimer.current);
+      favPopTimer.current = setTimeout(() => setFavPopAt(0), 300);
+    }
     await doPatch({ iid: image.id, is_favorited: !image.isFavorited });
     toast.success(image.isFavorited ? "已取消收藏" : "已收藏");
   };
@@ -143,7 +195,7 @@ export function Lightbox({
     try {
       await deleteImage.mutateAsync(image.id);
       toast.success("已移入回收站");
-      onClose();
+      requestClose();
     } catch (e) {
       toast.error(errorText(e));
     }
@@ -170,35 +222,35 @@ export function Lightbox({
   };
 
   return (
-    <LightboxBackdrop onClose={onClose}>
+    <LightboxBackdrop onClose={requestClose} closing={closing}>
       {/* 左右切换箭头 */}
       {idx > 0 && (
         <button
           type="button"
           aria-label="上一张"
-          className="absolute top-1/2 left-4 z-10 flex size-10 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-[rgba(255,255,255,0.28)] bg-[rgba(0,0,0,0.45)] text-xl text-white transition-colors hover:border-white hover:bg-[rgba(0,0,0,0.65)]"
+          className="absolute top-1/2 left-4 z-10 flex size-10 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-[rgba(255,255,255,0.28)] bg-[rgba(0,0,0,0.45)] text-white transition-all hover:border-white hover:bg-[rgba(0,0,0,0.65)] active:scale-90"
           onClick={goPrev}
         >
-          ‹
+          <ChevronLeft size={22} strokeWidth={2} />
         </button>
       )}
       {idx >= 0 && idx < siblingIds.length - 1 && (
         <button
           type="button"
           aria-label="下一张"
-          className="absolute top-1/2 right-4 z-10 flex size-10 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-[rgba(255,255,255,0.28)] bg-[rgba(0,0,0,0.45)] text-xl text-white transition-colors hover:border-white hover:bg-[rgba(0,0,0,0.65)]"
+          className="absolute top-1/2 right-4 z-10 flex size-10 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-[rgba(255,255,255,0.28)] bg-[rgba(0,0,0,0.45)] text-white transition-all hover:border-white hover:bg-[rgba(0,0,0,0.65)] active:scale-90"
           onClick={goNext}
         >
-          ›
+          <ChevronRight size={22} strokeWidth={2} />
         </button>
       )}
 
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        {/* 左侧大图 */}
+        {/* 左侧大图（切换时旧图淡出覆盖、新图淡入，交叉淡化） */}
         <div
-          className="flex min-w-0 flex-1 items-center justify-center p-5 md:pl-7"
+          className="relative flex min-w-0 flex-1 items-center justify-center p-5 md:pl-7"
           onClick={(e) => {
-            if (e.target === e.currentTarget) onClose();
+            if (e.target === e.currentTarget) requestClose();
           }}
         >
           {image.fileMissing ? (
@@ -206,16 +258,30 @@ export function Lightbox({
               文件缺失，仅保留元数据
             </div>
           ) : (
-            <img
-              src={previewSrc}
-              alt={image.id}
-              title="点击查看原图"
-              className="max-h-full max-w-full cursor-zoom-in rounded-xl bg-black object-contain shadow-2xl max-md:flex-[0_0_46vh]"
-              onClick={(e) => {
-                e.stopPropagation();
-                window.open(imageUrl.file(image.id), "_blank", "noopener");
-              }}
-            />
+            <>
+              <img
+                key={previewSrc}
+                src={previewSrc!}
+                alt={image.id}
+                title="点击查看原图"
+                className="lb-img-in max-h-full max-w-full cursor-zoom-in rounded-xl bg-black object-contain shadow-2xl max-md:flex-[0_0_46vh]"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.open(imageUrl.file(image.id), "_blank", "noopener");
+                }}
+              />
+              {/* 旧图淡出层：复刻大图的布局约束（同样的 contain 尺寸），叠于新图上方 */}
+              {prevSrc && (
+                <span className="lb-img-out pointer-events-none absolute inset-5 flex items-center justify-center md:left-7">
+                  <img
+                    src={prevSrc}
+                    alt=""
+                    aria-hidden
+                    className="max-h-full max-w-full rounded-xl bg-black object-contain shadow-2xl max-md:flex-[0_0_46vh]"
+                  />
+                </span>
+              )}
+            </>
           )}
         </div>
 
@@ -230,20 +296,30 @@ export function Lightbox({
                 download={(image.id || "image") + ".png"}
                 onClick={(e) => e.stopPropagation()}
               >
-                ⬇ 下载
+                <Download size={13} strokeWidth={1.8} />
+                下载
               </a>
             )}
             <button type="button" className="btn-ghost btn-ghost-sm" onClick={onContinue}>
-              ✏ 继续修改
+              <Pencil size={13} strokeWidth={1.8} />
+              继续修改
             </button>
             <button type="button" className="btn-ghost btn-ghost-sm" onClick={onAddRef}>
-              🧩 加参考库
+              <Puzzle size={13} strokeWidth={1.8} />
+              加参考库
             </button>
             <button type="button" className="btn-ghost btn-ghost-sm" onClick={onCopyPrompt}>
-              📋 复制 Prompt
+              <Copy size={13} strokeWidth={1.8} />
+              复制 Prompt
             </button>
             <button type="button" className="btn-ghost btn-ghost-sm" onClick={onFav}>
-              {image.isFavorited ? "★ 已收藏" : "☆ 收藏"}
+              <Star
+                size={13}
+                strokeWidth={1.8}
+                fill={image.isFavorited ? "currentColor" : "none"}
+                className={favPopAt ? "anim-pop" : undefined}
+              />
+              {image.isFavorited ? "已收藏" : "收藏"}
             </button>
           </div>
 
@@ -264,12 +340,13 @@ export function Lightbox({
                       {request.promptEffective}{" "}
                       <button
                         type="button"
-                        className="btn-mini ml-1"
+                        className="btn-mini ml-1 inline-flex items-center gap-1"
                         onClick={async () => {
                           const ok = await copyText(request.promptEffective ?? "");
                           ok ? toast.success("已复制") : toast.error("复制失败");
                         }}
                       >
+                        <Copy size={12} strokeWidth={1.8} />
                         复制
                       </button>
                     </td>
@@ -320,7 +397,7 @@ export function Lightbox({
                       type="button"
                       className="cursor-pointer text-accent hover:underline"
                       onClick={() => {
-                        onClose();
+                        requestClose();
                         onGoConversation?.(image.projectId, image.conversationId);
                       }}
                     >
@@ -364,7 +441,8 @@ export function Lightbox({
           {/* 删除 */}
           <div className="mt-4">
             <button type="button" className="btn-danger px-3 py-1.5 text-xs" onClick={onDelete}>
-              🗑 删除图片
+              <Trash2 size={13} strokeWidth={1.8} />
+              删除图片
             </button>
           </div>
         </div>
@@ -379,14 +457,18 @@ export function Lightbox({
 
 function LightboxBackdrop({
   onClose,
+  closing,
   children,
 }: {
   onClose: () => void;
+  /** 是否处于出场动画中（驱动 overlay 淡出 + 禁用交互） */
+  closing?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div
-      className="fixed inset-0 z-[70] flex flex-col bg-[rgba(5,7,10,0.88)] backdrop-blur-md"
+      className="modal-overlay fixed inset-0 z-[70] flex flex-col bg-[rgba(5,7,10,0.88)] backdrop-blur-md"
+      data-closing={closing ? "" : undefined}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -394,10 +476,10 @@ function LightboxBackdrop({
       <button
         type="button"
         aria-label="关闭"
-        className="absolute top-4 right-5 z-10 flex size-[38px] cursor-pointer items-center justify-center rounded-full border border-[rgba(255,255,255,0.28)] bg-[rgba(0,0,0,0.45)] text-xl text-white transition-colors hover:border-white hover:bg-[rgba(0,0,0,0.65)]"
+        className="absolute top-4 right-5 z-10 flex size-[38px] cursor-pointer items-center justify-center rounded-full border border-[rgba(255,255,255,0.28)] bg-[rgba(0,0,0,0.45)] text-white transition-all hover:border-white hover:bg-[rgba(0,0,0,0.65)] active:scale-90"
         onClick={onClose}
       >
-        ×
+        <X size={20} strokeWidth={2} />
       </button>
       {children}
     </div>

@@ -3,6 +3,7 @@
 // 设置弹窗：baseUrl / apiKey（显示切换）/ model / theme / 记住设置
 
 import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { useUI } from "@/app/providers";
 import { Modal } from "@/components/ui/modal";
@@ -90,9 +91,14 @@ export function SettingsModal() {
           />
           <button
             type="button"
-            className="absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer border-none bg-transparent text-xs text-accent"
+            className="absolute top-1/2 right-2 flex -translate-y-1/2 cursor-pointer items-center gap-1 rounded-md border-none bg-transparent px-1.5 py-0.5 text-xs text-muted transition-colors hover:bg-panel3 hover:text-text"
             onClick={() => setShowKey((v) => !v)}
           >
+            {showKey ? (
+              <EyeOff size={14} strokeWidth={1.8} aria-hidden="true" />
+            ) : (
+              <Eye size={14} strokeWidth={1.8} aria-hidden="true" />
+            )}
             {showKey ? "隐藏" : "显示"}
           </button>
         </div>

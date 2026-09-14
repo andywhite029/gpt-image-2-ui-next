@@ -140,6 +140,25 @@ export function useDeleteConversation() {
   });
 }
 
+export function useMoveConversation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ cid, ...d }: { cid: string; project_id: string; category_id?: string | null }) =>
+      endpoints.moveConversation(cid, d),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["categories"] });
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+      qc.invalidateQueries({ queryKey: queryKeys.conversation(vars.cid) });
+      qc.invalidateQueries({ queryKey: ["project"] });
+      qc.invalidateQueries({ queryKey: ["images"] });
+      qc.invalidateQueries({ queryKey: ["references"] });
+      qc.invalidateQueries({ queryKey: ["trash"] });
+      qc.invalidateQueries({ queryKey: ["search"] });
+    },
+  });
+}
+
 export function useCreateConversation() {
   const qc = useQueryClient();
   return useMutation({

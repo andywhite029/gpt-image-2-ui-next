@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { BookmarkPlus, Check, Eraser, Pencil, Plus, Sparkles, X } from "lucide-react";
 import {
   endpoints,
   errorText,
@@ -698,7 +699,8 @@ export function InputArea({ pid, cid, conversation, onSubmitted, busy }: InputAr
           className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-dashed border-border bg-transparent px-3 py-2 text-[13px] text-text transition-colors hover:border-accent hover:text-accent"
           onClick={() => setPopupOpen((v) => !v)}
         >
-          ＋ 参考图 <span className="text-xs text-muted">{selected.length}/{maxRefs}</span>
+          <Plus size={13} strokeWidth={1.8} />
+          参考图 <span className="text-xs text-muted">{selected.length}/{maxRefs}</span>
         </button>
         {selected.length > 0 && (
           <div className="flex flex-1 gap-2 overflow-x-auto p-0.5">
@@ -716,20 +718,20 @@ export function InputArea({ pid, cid, conversation, onSubmitted, busy }: InputAr
                       type="button"
                       title="重命名参考图"
                       aria-label={"重命名参考图 " + item.name}
-                      className="absolute -top-1.5 -left-1.5 flex size-[18px] cursor-pointer items-center justify-center rounded-full border border-border bg-panel2 text-[11px] text-text hover:border-accent hover:text-accent"
+                      className="absolute -top-1.5 -left-1.5 flex size-6 cursor-pointer items-center justify-center rounded-full border border-border bg-panel text-muted shadow-sm transition-colors hover:border-border2 hover:bg-panel3 hover:text-text active:scale-90"
                       onClick={() => renameReference(item)}
                     >
-                      ✎
+                      <Pencil size={12} strokeWidth={1.8} />
                     </button>
                   )}
                   <button
                     type="button"
                     title="移除"
                     aria-label={"移除参考图 " + item.name}
-                    className="absolute -top-1.5 -right-1.5 flex size-[18px] cursor-pointer items-center justify-center rounded-full border border-border bg-panel2 text-xs text-text hover:border-err hover:text-err"
+                    className="absolute -top-1.5 -right-1.5 flex size-6 cursor-pointer items-center justify-center rounded-full border border-border bg-panel text-muted shadow-sm transition-colors hover:border-err hover:bg-[rgba(245,63,63,0.1)] hover:text-err active:scale-90"
                     onClick={() => setSelected((prev) => prev.filter((s) => s.id !== item.id))}
                   >
-                    ×
+                    <X size={12} strokeWidth={2} />
                   </button>
                 </div>
                 <button
@@ -754,13 +756,25 @@ export function InputArea({ pid, cid, conversation, onSubmitted, busy }: InputAr
           title="清空输入内容（保留分类）"
           onClick={clearInput}
         >
+          <Eraser size={13} strokeWidth={1.8} />
           清空
         </button>
         <button type="button" className="btn-ghost" onClick={saveAsTemplate}>
+          <BookmarkPlus size={13} strokeWidth={1.8} />
           存为模板
         </button>
-        <button type="button" className="btn-primary px-7 py-2.5 text-[15px]" disabled={isBusy} onClick={submit}>
-          {isBusy && <span className="size-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />}
+        <button
+          type="button"
+          className="btn-generate"
+          data-busy={isBusy ? "true" : undefined}
+          disabled={isBusy}
+          onClick={submit}
+        >
+          {isBusy ? (
+            <span className="size-3.5 animate-spin rounded-full border-2 border-accent/30 border-t-accent" />
+          ) : (
+            <Sparkles size={16} strokeWidth={2} />
+          )}
           {isBusy ? (busy && !submitting ? "生成中…" : "提交中…") : "生成"}
         </button>
       </div>
@@ -870,7 +884,7 @@ function RefPickerGrid({
               {onRename && !item.fileMissing && item.source === "ref" && (
                 <span
                   title="重命名参考图"
-                  className="shrink-0 cursor-pointer text-[11px] text-warn hover:text-white"
+                  className="flex shrink-0 cursor-pointer text-warn hover:text-white"
                   onClick={(e) => {
                     e.stopPropagation();
                     const target = selected.find((s) => s.id === item.id) ?? {
@@ -882,13 +896,13 @@ function RefPickerGrid({
                     onRename(target);
                   }}
                 >
-                  ✎
+                  <Pencil size={11} strokeWidth={1.8} />
                 </span>
               )}
             </span>
             {isSelected && (
-              <span className="absolute top-1 right-1 flex size-[18px] items-center justify-center rounded-full bg-accent text-xs text-white">
-                ✓
+              <span className="absolute top-1 right-1 flex size-[18px] items-center justify-center rounded-full bg-accent text-white">
+                <Check size={11} strokeWidth={2.5} />
               </span>
             )}
           </button>
