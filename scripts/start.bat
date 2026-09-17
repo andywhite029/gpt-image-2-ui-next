@@ -24,6 +24,7 @@ if not exist node_modules (
 rem 首次运行：初始化数据库
 if not exist data\app.db (
     echo 初始化数据库...
+    if not exist data mkdir data
     call npx drizzle-kit push
     if errorlevel 1 (
         echo [错误] 数据库初始化失败。

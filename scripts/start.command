@@ -17,6 +17,7 @@ fi
 # 首次运行：初始化数据库
 if [ ! -f data/app.db ]; then
   echo "初始化数据库..."
+  mkdir -p data
   npx drizzle-kit push || { echo "[错误] 数据库初始化失败。"; exit 1; }
 fi
 
