@@ -80,6 +80,8 @@ const DOWNLOAD_RETRYABLE_HTTP = [429, 500, 502, 503, 504];
 const GENERATION_MAX_ATTEMPTS = 3;
 const GENERATION_BACKOFF_BASE = 1.0; // seconds
 const GENERATION_CONNECT_TIMEOUT = 30_000; // ms
+// 瞬时性 HTTP 错误（网关反代抖动/限流）重试；其余（401/400 等）确定性失败
+const GENERATION_RETRYABLE_HTTP = [429, 500, 502, 503, 504];
 
 const TLS_VERIFY = process.env.LIGHTWHEEL_TLS_VERIFY !== "false";
 
@@ -178,14 +180,20 @@ export async function callGenerate(params: GenerateParams): Promise<GenerateEntr
         data.map((item: unknown) => buildEntry(item, apiKey))
       );
     } catch (e) {
-      // Classify: only retry connection-level errors
-      if (e instanceof GatewayHTTPError || e instanceof GatewayResponseError) {
+      // Classify: deterministic HTTP errors (401/400...) and response errors fail immediately
+      if (
+        e instanceof GatewayHTTPError &&
+        !GENERATION_RETRYABLE_HTTP.includes(e.statusCode)
+      ) {
+        throw e;
+      }
+      if (e instanceof GatewayResponseError) {
         throw e; // Deterministic, don't retry
       }
       if (e instanceof GatewayTimeoutUnknown) {
         throw e;
       }
-      // TypeError / network errors → retry
+      // Retryable HTTP (502/503/429...), TypeError / network errors → retry
       lastErr = e instanceof Error ? e : new Error(String(e));
       if (attempt < GENERATION_MAX_ATTEMPTS - 1) {
         await sleep(GENERATION_BACKOFF_BASE * Math.pow(2, attempt) * 1000);
@@ -193,6 +201,11 @@ export async function callGenerate(params: GenerateParams): Promise<GenerateEntr
     }
   }
 
+  // 重试耗尽：瞬时 HTTP 错误按原状态码抛出（明确 failed），
+  // 仅连接层错误归为 unknown（网关可能已受理但响应丢失）
+  if (lastErr instanceof GatewayHTTPError) {
+    throw lastErr;
+  }
   throw new GatewayTimeoutUnknown(
     `连接网关失败（已重试 ${GENERATION_MAX_ATTEMPTS} 次）：${lastErr?.message}`
   );
