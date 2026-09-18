@@ -97,9 +97,12 @@ export function useRestoreTrash() {
 export function usePurgeTrash() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ type, eid }: { type: string; eid: string }) => endpoints.purgeTrash(type, eid),
+    mutationFn: ({ type, eid, force }: { type: string; eid: string; force?: boolean }) =>
+      endpoints.purgeTrash(type, eid, force),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["trash"] });
+      qc.invalidateQueries({ queryKey: ["references"] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
     },
   });
 }

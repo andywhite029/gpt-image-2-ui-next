@@ -5,7 +5,7 @@ import { errorResponse, locateReference } from "@/lib/api-helpers";
 import { ensureInit } from "@/lib/init";
 import { resolveFilePath } from "@/lib/storage";
 
-/** GET /api/references/[rid]/file — 参考图二进制（不可变，长缓存） */
+/** GET /api/references/[rid]/file — 参考图二进制（不可变，长缓存；软删参考图仍可读，供回收站预览） */
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ rid: string }> }
@@ -14,7 +14,6 @@ export async function GET(
     await ensureInit();
     const { rid } = await params;
     const ref = await locateReference(rid);
-    if (ref.isDeleted) throw notFound("参考图不存在或已被删除");
     if (ref.fileMissing) throw notFound("参考图文件缺失");
 
     const absPath = resolveFilePath(ref.projectId, ref.filePath);

@@ -509,6 +509,12 @@ textarea.input-text {
   outline-offset: -1px;
   background: rgba(0, 158, 250, 0.08);
 }
+/* 拖拽无效目标（对话已在当前位置）：灰色禁用态，光标 dropEffect=none */
+.drop-target-noop {
+  outline: 1px dashed var(--border2);
+  outline-offset: -1px;
+  cursor: no-drop;
+}
 
 /* 运动减弱总开关（系统无障碍偏好） */
 @media (prefers-reduced-motion: reduce) {

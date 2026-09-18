@@ -362,10 +362,12 @@ export const endpoints = {
       method: "POST",
       ...jsonBody({}),
     }),
-  purgeTrash: (type: string, eid: string) =>
-    api<{ success: boolean }>(`/api/trash/${encodeURIComponent(type)}/${encodeURIComponent(eid)}`, {
-      method: "DELETE",
-    }),
+  purgeTrash: (type: string, eid: string, force = false) =>
+    api<{ success: boolean; force?: boolean }>(
+      `/api/trash/${encodeURIComponent(type)}/${encodeURIComponent(eid)}` +
+        (force ? "?force=1" : ""),
+      { method: "DELETE" }
+    ),
   emptyTrash: () => api<{ success: boolean; purged?: number; failed?: unknown[] }>("/api/trash", { method: "DELETE" }),
 
   // ---- 搜索 ----

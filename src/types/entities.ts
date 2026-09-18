@@ -238,6 +238,10 @@ export interface ProjectOverview {
 export interface TrashItem extends TrashRecord {
   entityTitle: string;
   projectName: string;
+  /** 预览图（image/reference 单张；conversation 为级联图片缩略图）。url 行内缩略图，fullUrl 点击放大 */
+  previews?: Array<{ url: string; fullUrl: string; title: string }>;
+  /** 是否被引用而无法彻底删除（与 purge 引用检查口径一致） */
+  blocked?: boolean;
 }
 
 export interface SearchResult {

@@ -5,7 +5,7 @@ import { errorResponse, locateImage } from "@/lib/api-helpers";
 import { ensureInit } from "@/lib/init";
 import { resolveFilePath } from "@/lib/storage";
 
-/** GET /api/images/[iid]/file — 原图二进制（图片不可变，长缓存） */
+/** GET /api/images/[iid]/file — 原图二进制（图片不可变，长缓存；软删图片仍可读，供回收站预览） */
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ iid: string }> }
@@ -14,7 +14,6 @@ export async function GET(
     await ensureInit();
     const { iid } = await params;
     const asset = await locateImage(iid);
-    if (asset.isDeleted) throw notFound("图片不存在或已被删除");
     if (asset.fileMissing) throw notFound("图片文件缺失");
 
     const absPath = resolveFilePath(asset.projectId, asset.filePath);

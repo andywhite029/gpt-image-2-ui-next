@@ -9,7 +9,7 @@ import { buildResized, resolveFilePath } from "@/lib/storage";
 const PREVIEW_LONG_EDGE = 1280;
 const OUTPUTS_DIR = process.env.OUTPUTS_DIR || "public/outputs";
 
-/** GET /api/images/[iid]/preview — 1280px 预览；用 sharp 现场生成，缓存到 thumbnails/{iid}_preview.jpg；失败回退原图 */
+/** GET /api/images/[iid]/preview — 1280px 预览；用 sharp 现场生成，缓存到 thumbnails/{iid}_preview.jpg；失败回退原图；软删图片仍可读，供回收站预览 */
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ iid: string }> }
@@ -18,7 +18,6 @@ export async function GET(
     await ensureInit();
     const { iid } = await params;
     const asset = await locateImage(iid);
-    if (asset.isDeleted) throw notFound("图片不存在或已被删除");
     if (asset.fileMissing) throw notFound("图片文件缺失");
 
     const absPath = resolveFilePath(asset.projectId, asset.filePath);

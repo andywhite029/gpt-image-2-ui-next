@@ -13,6 +13,7 @@ import {
   Eye,
   EyeOff,
   Folder,
+  FolderInput,
   FolderOpen,
   FolderPlus,
   Image as ImageIcon,
@@ -32,7 +33,7 @@ import { useCategories, useConversations, useMoveConversation } from "@/hooks/us
 import { useUI } from "@/app/providers";
 import { useModal } from "@/components/ui/modal";
 import { ContextMenu, useContextMenu, type ContextMenuItem } from "@/components/ui/context-menu";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQueries } from "@tanstack/react-query";
 import { queryKeys } from "@/hooks/use-projects";
 import type { Category, Conversation, Project } from "@/types/entities";
 
@@ -73,10 +74,14 @@ const readConvDrag = (e: React.DragEvent): ConvDragPayload | null => {
 
 interface ConvDragContextValue {
   draggingCid: string | null;
-  beginDrag: (cid: string) => void;
+  /** 被拖对话当前所属 (pid, categoryId)，目标据此显示「无效/已在此处」状态 */
+  draggingFrom: { pid: string; categoryId: string | null } | null;
+  beginDrag: (cid: string, pid: string, categoryId: string | null) => void;
   endDrag: () => void;
   /** 拖放成功后的移动处理（toast / 展开 / URL 替换） */
   onDropConversation: (payload: ConvDragPayload, targetPid: string, targetCatId: string | null, label: string) => void;
+  /** 右键「移动到…」菜单数据：全部项目（含分类）与移动动作 */
+  allProjects: Array<{ id: string; name: string; categories: Array<{ id: string; name: string }> }>;
 }
 
 const ConvDragContext = createContext<ConvDragContextValue | null>(null);
@@ -177,8 +182,23 @@ export function Sidebar({ mobileOnly = false }: { mobileOnly?: boolean }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   // 已挂载状态：展开过一次的项目保持子树挂载（用于展开/收起动画）
   const [mounted, setMounted] = useState<Set<string>>(new Set());
-  // 拖拽中的对话 id
+  // 拖拽中的对话 id 与其当前位置
   const [draggingCid, setDraggingCid] = useState<string | null>(null);
+  const [draggingFrom, setDraggingFrom] = useState<{ pid: string; categoryId: string | null } | null>(null);
+
+  // 右键「移动到…」需要所有项目的分类清单；一次性拉全部项目的分类
+  // （项目数通常个位数，与 ProjectNode 内的 useCategories 共享 query 缓存，无额外请求）
+  const allCategories = useQueries({
+    queries: projects.map((p) => ({
+      queryKey: queryKeys.categories(p.id),
+      queryFn: () => endpoints.categories(p.id).then((d) => d.categories ?? []),
+    })),
+  });
+  const allProjects = projects.map((p, i) => ({
+    id: p.id,
+    name: p.name,
+    categories: allCategories[i]?.data ?? [],
+  }));
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
 
@@ -219,8 +239,12 @@ export function Sidebar({ mobileOnly = false }: { mobileOnly?: boolean }) {
     targetCatId: string | null,
     label: string
   ) => {
-    if (payload.cid && payload.pid === targetPid && targetCatId === null) {
-      // 同项目拖到项目头 = 无变化（区分拖到分类头）
+    // 同项目拖到项目头 = 保持原分类，仅跨项目时项目头才代表「未分类」
+    const effectiveCatId = payload.pid === targetPid && targetCatId === null ? undefined : targetCatId;
+    if (effectiveCatId === undefined) {
+      // 同项目拖到项目头：无变化，不请求
+      toast("对话已在当前项目内，拖到具体分类可改变归属");
+      return;
     }
     move.mutate(
       { cid: payload.cid, project_id: targetPid, category_id: targetCatId },
@@ -244,9 +268,17 @@ export function Sidebar({ mobileOnly = false }: { mobileOnly?: boolean }) {
 
   const dragContext: ConvDragContextValue = {
     draggingCid,
-    beginDrag: (cid) => setDraggingCid(cid),
-    endDrag: () => setDraggingCid(null),
+    draggingFrom,
+    beginDrag: (cid, pid, categoryId) => {
+      setDraggingCid(cid);
+      setDraggingFrom({ pid, categoryId });
+    },
+    endDrag: () => {
+      setDraggingCid(null);
+      setDraggingFrom(null);
+    },
     onDropConversation,
+    allProjects,
   };
 
   return (
@@ -313,6 +345,7 @@ export function Sidebar({ mobileOnly = false }: { mobileOnly?: boolean }) {
                     expanded={expanded.has(p.id)}
                     everExpanded={mounted.has(p.id)}
                     onToggle={() => toggleExpand(p.id)}
+                    onExpand={() => expandProject(p.id)}
                     pathname={pathname}
                     generatingIds={generatingConversationIds}
                     onNavClick={onNavClick}
@@ -350,6 +383,7 @@ function ProjectNode({
   expanded,
   everExpanded,
   onToggle,
+  onExpand,
   pathname,
   generatingIds,
   onNavClick,
@@ -359,6 +393,7 @@ function ProjectNode({
   expanded: boolean;
   everExpanded: boolean;
   onToggle: () => void;
+  onExpand: () => void;
   pathname: string;
   generatingIds: Set<string>;
   onNavClick: () => void;
@@ -374,6 +409,9 @@ function ProjectNode({
   const springTimer = useRef<number | null>(null);
   const projectHref = `/projects/${project.id}`;
   const active = pathname === projectHref || pathname.startsWith(projectHref + "/");
+  // 同项目且非跨分类拖拽时，项目头是无效目标（对话已在该项目内）
+  const isNoopTarget =
+    !!drag.draggingFrom && drag.draggingFrom.pid === project.id;
 
   const clearSpring = () => {
     if (springTimer.current != null) {
@@ -402,6 +440,24 @@ function ProjectNode({
   // 项目右键菜单
   const projectMenuItems = (e: React.MouseEvent) => {
     openMenu(e, [
+      {
+        label: "新建对话",
+        icon: MessageSquarePlus,
+        onSelect: async () => {
+          try {
+            const res = await endpoints.createConversation(project.id, { title: undefined, category_id: null });
+            toast.success("对话已创建（未分类）");
+            qc.invalidateQueries({ queryKey: ["conversations"] });
+            qc.invalidateQueries({ queryKey: ["projects"] });
+            onExpand();
+            if (res.conversation) {
+              router.push(`/projects/${project.id}/conversation/${res.conversation.id}`);
+            }
+          } catch (err) {
+            toast.error(errorText(err));
+          }
+        },
+      },
       {
         label: "新建分类",
         icon: FolderPlus,
@@ -449,7 +505,11 @@ function ProjectNode({
         className={
           "group flex min-w-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-[13px] text-text transition-colors hover:bg-panel2 " +
           (active ? "bg-panel3 " : "") +
-          (dropTarget ? "drop-target-active" : "")
+          (dropTarget
+            ? isNoopTarget
+              ? "drop-target-noop"
+              : "drop-target-active"
+            : "")
         }
         onClick={onNavClick}
         role="link"
@@ -462,7 +522,8 @@ function ProjectNode({
         onDragOver={(e) => {
           if (!isConvDrag(e)) return;
           e.preventDefault();
-          e.dataTransfer.dropEffect = "move";
+          e.stopPropagation();
+          e.dataTransfer.dropEffect = isNoopTarget ? "none" : "move";
           setDropTarget(true);
           // 悬停折叠项目自动展开（spring-loading，仿 Finder）
           if (!expanded && springTimer.current == null) {
@@ -481,6 +542,7 @@ function ProjectNode({
           e.preventDefault();
           clearSpring();
           setDropTarget(false);
+          if (isNoopTarget) return;
           const payload = readConvDrag(e);
           if (payload) drag.onDropConversation(payload, project.id, null, project.name);
         }}
@@ -647,6 +709,11 @@ function CategoryNode({
   const href = `/projects/${project.id}/category/${category.id}`;
   const active = pathname === href;
   const catConvs = conversations.filter((c) => c.categoryId === category.id);
+  // 对话已在该分类 → 无效目标（显示禁用态而非成功态）
+  const isNoopTarget =
+    !!drag.draggingFrom &&
+    drag.draggingFrom.pid === project.id &&
+    drag.draggingFrom.categoryId === category.id;
 
   const reorder = async (from: number, to: number) => {
     if (from === to || from < 0 || to < 0 || from >= categories.length || to >= categories.length) return;
@@ -722,10 +789,12 @@ function CategoryNode({
     <div className="mb-0.5">
       <div
         className={
-          "group flex min-w-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-[13px] text-text transition-colors hover:bg-panel2 " +
-          (active ? "bg-panel3 " : "") +
+          "group flex min-w-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted transition-colors hover:bg-panel2 hover:text-text " +
+          (active ? "bg-panel3 text-text " : "") +
           (convDragOver
-            ? "drop-target-active "
+            ? isNoopTarget
+              ? "drop-target-noop"
+              : "drop-target-active "
             : dragOver
               ? "outline-1 -outline-offset-1 outline-dashed outline-accent"
               : "")
@@ -740,11 +809,14 @@ function CategoryNode({
           const isCatReorder = Array.from(e.dataTransfer.types).includes("text/plain");
           if (!isConvDrag(e) && !isCatReorder) return;
           e.preventDefault();
-          e.dataTransfer.dropEffect = "move";
+          e.stopPropagation();
+          e.dataTransfer.dropEffect = isConvDrag(e) && isNoopTarget ? "none" : "move";
           if (isConvDrag(e)) setConvDragOver(true);
           else setDragOver(true);
         }}
-        onDragLeave={() => {
+        onDragLeave={(e) => {
+          // 子元素（对话行）间的移动不算离开
+          if (e.currentTarget.contains(e.relatedTarget as Node)) return;
           setDragOver(false);
           setConvDragOver(false);
         }}
@@ -753,6 +825,7 @@ function CategoryNode({
           setDragOver(false);
           setConvDragOver(false);
           if (isConvDrag(e)) {
+            if (isNoopTarget) return;
             const payload = readConvDrag(e);
             if (payload) {
               drag.onDropConversation(payload, project.id, category.id, `${project.name} / ${category.name}`);
@@ -769,11 +842,11 @@ function CategoryNode({
           router.push(href);
         }}
       >
-        <span className="w-3.5 shrink-0" />
-        <span className="flex min-w-0 flex-1 items-center gap-1.5">
-          <Folder size={14} strokeWidth={1.8} className="shrink-0 text-muted" />
-          <span className="truncate">{category.name}</span>
-        </span>
+      <span className="w-3.5 shrink-0" />
+      <span className="flex min-w-0 flex-1 items-center gap-1.5">
+        <Folder size={14} strokeWidth={1.8} className="shrink-0 text-muted" />
+        <span className="truncate">{category.name}</span>
+      </span>
         <span className="hidden shrink-0 items-center gap-0.5 group-hover:inline-flex">
           <TreeOp
             title="重命名分类"
@@ -798,18 +871,42 @@ function CategoryNode({
           </TreeOp>
         </span>
       </div>
-      {/* 对话行 */}
-      {catConvs.map((conv) => (
-        <ConversationRow
-          key={conv.id}
-          project={project}
-          conversation={conv}
-          pathname={pathname}
-          generating={generatingIds.has(conv.id)}
-          onNavClick={onNavClick}
-          openMenu={openMenu}
-        />
-      ))}
+      {/* 对话行（连同行区域整体作为分类 drop 区，拖到行上=移入该分类） */}
+      <div
+        onDragOver={(e) => {
+          if (!isConvDrag(e)) return;
+          e.preventDefault();
+          e.stopPropagation();
+          e.dataTransfer.dropEffect = isNoopTarget ? "none" : "move";
+          setConvDragOver(true);
+        }}
+        onDragLeave={(e) => {
+          if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+          setConvDragOver(false);
+        }}
+        onDrop={(e) => {
+          if (!isConvDrag(e)) return;
+          e.preventDefault();
+          setConvDragOver(false);
+          if (isNoopTarget) return;
+          const payload = readConvDrag(e);
+          if (payload) {
+            drag.onDropConversation(payload, project.id, category.id, `${project.name} / ${category.name}`);
+          }
+        }}
+      >
+        {catConvs.map((conv) => (
+          <ConversationRow
+            key={conv.id}
+            project={project}
+            conversation={conv}
+            pathname={pathname}
+            generating={generatingIds.has(conv.id)}
+            onNavClick={onNavClick}
+            openMenu={openMenu}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -838,26 +935,36 @@ function UncategorizedNode({
   const [convDragOver, setConvDragOver] = useState(false);
   const href = `/projects/${project.id}/uncategorized`;
   const active = pathname === href;
+  // 对话已是「该项目未分类」→ 无效目标
+  const isNoopTarget =
+    !!drag.draggingFrom &&
+    drag.draggingFrom.pid === project.id &&
+    drag.draggingFrom.categoryId === null;
 
   return (
     <div className="mb-0.5">
       <div
         className={
-          "flex min-w-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-[13px] text-text transition-colors hover:bg-panel2 " +
-          (active ? "bg-panel3 " : "") +
-          (convDragOver ? "drop-target-active" : "")
+          "flex min-w-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted transition-colors hover:bg-panel2 hover:text-text " +
+          (active ? "bg-panel3 text-text " : "") +
+          (convDragOver ? (isNoopTarget ? "drop-target-noop" : "drop-target-active") : "")
         }
         onDragOver={(e) => {
           if (!isConvDrag(e)) return;
           e.preventDefault();
-          e.dataTransfer.dropEffect = "move";
+          e.stopPropagation();
+          e.dataTransfer.dropEffect = isNoopTarget ? "none" : "move";
           setConvDragOver(true);
         }}
-        onDragLeave={() => setConvDragOver(false)}
+        onDragLeave={(e) => {
+          if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+          setConvDragOver(false);
+        }}
         onDrop={(e) => {
           if (!isConvDrag(e)) return;
           e.preventDefault();
           setConvDragOver(false);
+          if (isNoopTarget) return;
           const payload = readConvDrag(e);
           if (payload) drag.onDropConversation(payload, project.id, null, `${project.name} / 未分类`);
         }}
@@ -872,17 +979,40 @@ function UncategorizedNode({
           <span className="truncate">未分类</span>
         </span>
       </div>
-      {conversations.map((conv) => (
-        <ConversationRow
-          key={conv.id}
-          project={project}
-          conversation={conv}
-          pathname={pathname}
-          generating={generatingIds.has(conv.id)}
-          onNavClick={onNavClick}
-          openMenu={openMenu}
-        />
-      ))}
+      {/* 对话行（整体作为未分类 drop 区） */}
+      <div
+        onDragOver={(e) => {
+          if (!isConvDrag(e)) return;
+          e.preventDefault();
+          e.stopPropagation();
+          e.dataTransfer.dropEffect = isNoopTarget ? "none" : "move";
+          setConvDragOver(true);
+        }}
+        onDragLeave={(e) => {
+          if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+          setConvDragOver(false);
+        }}
+        onDrop={(e) => {
+          if (!isConvDrag(e)) return;
+          e.preventDefault();
+          setConvDragOver(false);
+          if (isNoopTarget) return;
+          const payload = readConvDrag(e);
+          if (payload) drag.onDropConversation(payload, project.id, null, `${project.name} / 未分类`);
+        }}
+      >
+        {conversations.map((conv) => (
+          <ConversationRow
+            key={conv.id}
+            project={project}
+            conversation={conv}
+            pathname={pathname}
+            generating={generatingIds.has(conv.id)}
+            onNavClick={onNavClick}
+            openMenu={openMenu}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -910,6 +1040,7 @@ function ConversationRow({
   const qc = useQueryClient();
   const router = useRouter();
   const drag = useConvDrag();
+  const rowRef = useRef<HTMLDivElement>(null);
   const href = `/projects/${project.id}/conversation/${conversation.id}`;
   const active = pathname === href;
   const dragging = drag.draggingCid === conversation.id;
@@ -950,8 +1081,86 @@ function ConversationRow({
     }
   };
 
+  /** 右键「移动到…」：弹窗选择 项目+分类（拖拽的兜底交互） */
+  const openMoveDialog = () => {
+    modal.openModal({
+      title: `移动对话「${conversation.title}」`,
+      body: (
+        <form
+          id="move-conversation-form"
+          // 切项目后重算分类下拉选项（modal body 用非受控 DOM 简化桥接）
+          onInput={(e) => {
+            const target = e.target as HTMLSelectElement;
+            if (target.name !== "pid") return;
+            const form = e.currentTarget;
+            const pid = target.value;
+            const catSel = form.elements.namedItem("category_id");
+            if (!(catSel instanceof HTMLSelectElement)) return;
+            const cats = drag.allProjects.find((p) => p.id === pid)?.categories ?? [];
+            catSel.innerHTML =
+              '<option value="">未分类</option>' +
+              cats.map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
+            catSel.value = "";
+          }}
+        >
+          <div className="field">
+            <label className="field-label">目标项目</label>
+            <select name="pid" className="input-select" defaultValue={project.id}>
+              {drag.allProjects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label className="field-label">目标分类</label>
+            <select name="category_id" className="input-select" defaultValue={conversation.categoryId ?? ""}>
+              <option value="">未分类</option>
+              {(drag.allProjects.find((p) => p.id === project.id)?.categories ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </form>
+      ),
+      actions: [
+        { label: "取消", kind: "ghost" },
+        {
+          label: "移动",
+          kind: "primary",
+          onClick: async () => {
+            const form = document.getElementById("move-conversation-form") as HTMLFormElement | null;
+            if (!form) return false;
+            const fd = new FormData(form);
+            const targetPid = String(fd.get("pid") ?? project.id);
+            const targetCatId = String(fd.get("category_id") ?? "") || null;
+            try {
+              const res = await endpoints.moveConversation(conversation.id, {
+                project_id: targetPid,
+                category_id: targetCatId,
+              });
+              if (res.moved) {
+                toast.success("对话已移动");
+              } else {
+                toast("对话已在目标位置");
+              }
+              return true;
+            } catch (e) {
+              toast.error(errorText(e));
+              return false;
+            }
+          },
+        },
+      ],
+    });
+  };
+
   const conversationMenuItems = (e: React.MouseEvent) => {
     openMenu(e, [
+      { label: "移动到…", icon: FolderInput, onSelect: openMoveDialog },
       { label: "重命名对话", icon: Pencil, onSelect: renameConversation },
       {
         label: "复制对话 ID",
@@ -970,8 +1179,9 @@ function ConversationRow({
 
   return (
     <div
+      ref={rowRef}
       className={
-        "group flex min-w-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-[13px] text-text transition-colors hover:bg-panel2 " +
+        "group flex min-w-0 cursor-grab items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-text transition-colors hover:bg-panel2 active:cursor-grabbing " +
         (active ? "bg-panel3 " : "") +
         (dragging ? "opacity-40" : "")
       }
@@ -988,7 +1198,9 @@ function ConversationRow({
           CONV_MOVE_MIME,
           JSON.stringify({ cid: conversation.id, pid: project.id } satisfies ConvDragPayload)
         );
-        drag.beginDrag(conversation.id);
+        // 部分浏览器要求同时提供 text/plain 才能保证拖拽不中断
+        e.dataTransfer.setData("text/plain", conversation.title);
+        drag.beginDrag(conversation.id, project.id, conversation.categoryId ?? null);
       }}
       onDragEnd={() => drag.endDrag()}
       onContextMenu={conversationMenuItems}
@@ -998,9 +1210,9 @@ function ConversationRow({
         router.push(href);
       }}
     >
-      <span className="w-3.5 shrink-0" />
+      <span className="w-5 shrink-0" />
       <span className="flex min-w-0 flex-1 items-center gap-1.5">
-        <MessageSquare size={14} strokeWidth={1.8} className="shrink-0 text-muted" />
+        <MessageSquare size={13} strokeWidth={1.8} className="shrink-0 text-faint" />
         <span className="truncate">{conversation.title}</span>
       </span>
       {generating && <span className="gen-dot" />}

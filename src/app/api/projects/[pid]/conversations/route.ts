@@ -18,13 +18,13 @@ export async function GET(
     const { pid } = await params;
     await requireProject(pid);
 
+    // category_id 过滤：URL 无参数 → 返回全部；category_id= 空 → 仅未分类。
+    // 注意 searchParams.get 无参数时返回 null，需与 undefined（未过滤）区分。
+    const rawCategoryId = request.nextUrl.searchParams.get("category_id");
     let categoryId: string | null | undefined =
-      request.nextUrl.searchParams.get("category_id");
-    if (categoryId != null) {
-      categoryId = categoryId.trim() || null;
-      if (categoryId != null && !validEntityId(categoryId, CATEGORY_PREFIX)) {
-        throw new ServiceError("非法的分类 ID", "INVALID_REQUEST", 400, categoryId);
-      }
+      rawCategoryId == null ? undefined : rawCategoryId.trim() || null;
+    if (categoryId != null && !validEntityId(categoryId, CATEGORY_PREFIX)) {
+      throw new ServiceError("非法的分类 ID", "INVALID_REQUEST", 400, categoryId);
     }
 
     const rows = await db
