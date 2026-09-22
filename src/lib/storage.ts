@@ -19,13 +19,12 @@ export function saveImageFile(
   content: Buffer,
   suffix: string
 ): { filePath: string; fileSize: number } {
-  const outputsDir = path.join(OUTPUTS_DIR, projectId);
-  ensureDir(outputsDir);
-
   const filename = uuidv4().replace(/-/g, "") + suffix;
   // 存储统一使用 POSIX 分隔符（JSON 持久化 + URL/前缀匹配一致性）
   const filePath = `outputs/${filename}`;
   const absPath = path.join(OUTPUTS_DIR, projectId, filePath);
+  // 建 absPath 的父目录：新建项目没有 outputs/ 子目录（迁移来的项目才有），不建会 ENOENT
+  ensureDir(path.dirname(absPath));
 
   fs.writeFileSync(absPath, content);
   const fileSize = fs.statSync(absPath).size;
