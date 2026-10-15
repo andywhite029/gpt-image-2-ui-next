@@ -2,7 +2,7 @@
 
 // 设置弹窗：baseUrl / apiKey（显示切换）/ model / theme / 记住设置
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { useUI } from "@/app/providers";
@@ -14,6 +14,19 @@ export function SettingsModal() {
   const { settingsOpen, setSettingsOpen } = useUI();
   const { settings, update } = useSettings();
   const { data: config } = useConfig();
+
+  // 可选模型来自 model_capabilities.json（/api/config 的 models 字段）；
+  // 若当前保存的模型不在列表里（例如配置被改过），仍保留为一项以免选择被悄悄重置
+  const availableModels = useMemo(() => {
+    const list = config?.models?.length
+      ? [...config.models]
+      : config?.capabilities
+        ? Object.keys(config.capabilities)
+        : [];
+    const current = settings.model;
+    if (current && !list.includes(current)) list.push(current);
+    return list;
+  }, [config, settings.model]);
 
   // 本地编辑态（打开时从 settings 初始化）
   const [baseUrl, setBaseUrl] = useState("");
@@ -105,12 +118,21 @@ export function SettingsModal() {
       </div>
       <div className="field">
         <label className="field-label">模型</label>
-        <input
-          type="text"
-          className="input-text"
+        <select
+          className="input-select"
           value={model}
           onChange={(e) => setModel(e.target.value)}
-        />
+        >
+          {availableModels.length > 0 ? (
+            availableModels.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))
+          ) : (
+            <option value="gpt-image-2">gpt-image-2</option>
+          )}
+        </select>
       </div>
       <div className="field">
         <label className="field-label">主题</label>

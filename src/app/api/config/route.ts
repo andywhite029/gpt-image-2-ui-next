@@ -12,6 +12,7 @@ export async function GET(_request: NextRequest) {
       baseUrl: config.baseUrl,
       hasApiKey: false,
       model: config.model,
+      models: Object.keys(config.capabilities),
       capabilities: config.capabilities,
     });
   } catch (e) {

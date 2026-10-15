@@ -11,6 +11,7 @@ import {
   errorText,
   imageThumbUrl,
   referenceFileUrl,
+  type ConfigResponse,
   type GenerateResponse,
 } from "@/lib/api-client";
 import { queryKeys, useConfig } from "@/hooks/use-projects";
@@ -22,7 +23,10 @@ import { useModal } from "@/components/ui/modal";
 import { useUI } from "@/app/providers";
 import type { Conversation, ImageSummary, ReferenceSummary } from "@/types/entities";
 
-const DEFAULT_CAPS = {
+/** 单个模型的能力配置（与 /api/config 返回的结构一致） */
+type ModelCapability = ConfigResponse["capabilities"][string];
+
+const DEFAULT_CAPS: ModelCapability = {
   supported_sizes: [{ size: "1024x1024", ratio: "1:1" }],
   supports_quality: false,
   quality_options: [] as string[],
@@ -73,9 +77,18 @@ export function InputArea({ pid, cid, conversation, onSubmitted, busy }: InputAr
   const [dragOver, setDragOver] = useState(false);
 
   // ---- capabilities ----
-  const caps = useMemo(() => {
-    const model = settings.model || config?.model || "gpt-image-2";
-    return config?.capabilities?.[model] ?? DEFAULT_CAPS;
+  const caps = useMemo((): ModelCapability => {
+    const capsMap = config?.capabilities;
+    if (!capsMap) return DEFAULT_CAPS;
+
+    const requestedModel = settings.model || config.model || "gpt-image-2";
+
+    // 优先用当前设置里的模型；找不到则回退到配置里的第一个模型
+    // （例如设置里存了配置文件已不存在的模型名，不能让比例列表塌缩成 1:1）
+    const firstKey = Object.keys(capsMap)[0];
+    const hit = capsMap[requestedModel] ?? (firstKey ? capsMap[firstKey] : undefined);
+
+    return hit?.supported_sizes?.length ? hit : DEFAULT_CAPS;
   }, [config, settings.model]);
   const maxRefs = caps.max_reference_images || 16;
 

@@ -161,6 +161,8 @@ export interface ConfigResponse {
   baseUrl: string;
   hasApiKey: boolean;
   model: string;
+  /** model_capabilities.json 里已配置的模型名，供设置弹窗下拉选择 */
+  models: string[];
   capabilities: Record<
     string,
     {
